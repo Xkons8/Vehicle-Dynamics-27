@@ -35,11 +35,13 @@ Optimization Toolbox), then `vd_selftest` again.
     cars/config_<CAR>.m    every property of one car - the file you normally edit
     vehicle_params.m       builds the params struct p (constants, model switches)
     tire_coeffs_<CAR>.mat  generated tire model (never hand-edit; rebuild it)
-    util/        shared helpers: vd_set, vd_derive, vd_const, fsae_rules, scoring,
-                 vd_row / vd_warn (printed output)
+    util/        shared helpers: vd_set, vd_derive, vd_const, fsae_rules,
+                 fsae_field / fsae_points (scoring), vd_row / vd_warn (printed output)
     tire/        tire fitting and the artifact build (needs TTC_Data/)
     models/      physics at one operating point (grip, accel, braking, handling)
-    lapsim/      lap solver, 75 m integrator, duty cycle, lap reports
+    lapsim/      lap solver, 75 m integrator, duty cycle, lap reports,
+                 fsae_events (simulates the four dynamic events)
+    competitions/  published results of real competitions (CSV), scored against
     targets/     runnable studies (run_*) that issue targets
     tests/       vd_selftest, vd_golden, ci_checks.py, ci_staleness.py, refs/
     tracks/      digitized courses (CSV) and the digitizer
@@ -52,6 +54,7 @@ Optimization Toolbox), then `vd_selftest` again.
 |---|---|
 | measured or decided about *this car* | `cars/config_<CAR>.m` |
 | fixed by the *competition rules* | `util/fsae_rules.m` |
+| other teams' *real results* | `competitions/<name>/` |
 | fitted from *tire data* | `tire/`, ends up in `tire_coeffs_<CAR>.mat` |
 | pure arithmetic on the inputs | `util/vd_derive.m` |
 | computed at *one operating point* | `models/` |
@@ -105,7 +108,7 @@ run, above the results.
 Three layers, cheapest first. CI runs all of them on every push.
 
 ```matlab
-vd_selftest      % is the physics wired up correctly?  (~65 checks)
+vd_selftest      % is the physics wired up correctly?  (~70 checks)
 vd_golden        % did any number this repo produces change?
 ```
 ```bash
@@ -149,7 +152,8 @@ machine with the data before pushing.
   commit the artifact with the code. Never commit `TTC_Data/`.
 - Reuse, do not copy: one function each for the 75 m run (`accel_time`), braking
   (`ax_limit`), axle loads and resistances (`road_loads`), one tire
-  (`tire_forces`) and scoring (`fsae_points`).
+  (`tire_forces`), and simulating and scoring the dynamic events (`fsae_events`,
+  `fsae_points`).
 - Units: SI everywhere except the tire interface (lbf, deg, suffixed `_lbf`,
   `_deg`); accelerations are in g at function interfaces.
 - A new study (CI checks all four): `targets/run_<thing>_targets.m` taking `p` and
@@ -168,8 +172,36 @@ Set in `vehicle_params.m`; override per study with `vd_set`.
                                 default), 'axle' or 'pointmass'
     p.tire_hiload = 'central'   tire grip above the tested load range: 'central'
                                 or 'low' (pessimistic bracket)
+    p.slip_drag  = 'on'         tire slip drag in corners (models/slip_drag.m): the
+                                rear tires must push against it (slower corner exits,
+                                a lower skidpad speed the car can hold) and endurance
+                                energy pays for it; 'off' leaves cornering loss out
+    p.competition = 'fsae_mi_2026_ev'   real results that points are scored against
 
 Quote numbers with the model they came from.
+
+## Competition points
+
+Studies that report points (`run_aero_targets`, `run_pack_targets`) do it in
+two steps, which any new study can reuse:
+
+```matlab
+ev = fsae_events(p);                                     % simulate the dynamic events
+[pts, brk] = fsae_points(ev, fsae_field(p.competition)); % score them against a real field
+```
+
+- `fsae_events` runs endurance at the highest power cap at which the pack
+  covers `p.scenario.endurance_m` (usable fraction and margin in the car config).
+- `fsae_points` applies the rulebook formulas (constants in `util/fsae_rules.m`)
+  with our car entered into the real results in `competitions/<name>/`: if it
+  beats the fastest time, it becomes the fastest time. `vd_selftest` checks
+  that it reproduces every published score of that competition.
+- The simulation drives a perfect lap, so simulated times are multiplied by
+  `p.scenario.time_factor_sprint` and `time_factor_endurance` before scoring.
+  These are assumptions, not calibrated: replace them with measured vs
+  simulated times once the car runs.
+- To score against another competition, add `competitions/<name>/` with the
+  same five CSV files (format in `util/fsae_field.m`) and set `p.competition`.
 
 ## Troubleshooting
 

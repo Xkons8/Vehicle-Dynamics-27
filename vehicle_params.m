@@ -43,12 +43,18 @@ p.g   = 9.81;      % gravity [m/s^2]
 p.rho = 1.225;     % air density [kg/m^3]
 
 % --- Competition scenario (same for every car) ---
-p.scenario.endurance_m    = fsae_rules().endurance_m;  % rules endurance distance [m]
-p.scenario.benchmark_laps = 22;     % lap count of the real 2026 results used for scoring [-]
+p.competition = 'fsae_mi_2026_ev';  % real results points are scored against (competitions/<name>/)
+p.scenario.endurance_m = fsae_rules().endurance_m;  % distance the pack energy must cover [m]
+% The lap simulation drives a perfect lap; a real driver is slower. Points
+% are scored on the simulated times multiplied by these factors. ASSUMED,
+% not calibrated: replace with measured-vs-simulated times from testing.
+p.scenario.time_factor_sprint    = 1.08;   % accel, skidpad, autocross [-] PROVISIONAL
+p.scenario.time_factor_endurance = 1.04;   % endurance laps (power-capped pace) [-] PROVISIONAL
 
 % --- Model selection (fidelity switches, not car properties) ---
 p.grip_model = 'axle';      % lateral limit: 'axle' (load-sensitive) | 'pointmass'
 p.long_model = 'combined';  % longitudinal: 'combined' (per-axle ellipse) | 'axle' | 'pointmass'
+p.slip_drag  = 'on';        % tire slip drag in corners (slip_drag): 'on' | 'off' (no cornering loss)
 
 % --- Per-corner camber (degrees, positive = the helpful lean) -------------
 % Zero by default. An input, not a suspension model: nothing computes camber

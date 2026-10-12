@@ -6,7 +6,7 @@ flowchart TD
     subgraph data["Inputs"]
         TTC["TTC_Data/*.mat<br>tire test data (licensed, local only)"]
         PNG["tracks/*.png<br>course maps (local only)"]
-        BM["organization/comp_benchmarks_2026.csv<br>real competition results"]
+        BM["competitions/&lt;name&gt;/*.csv<br>real competition results"]
         CFG["cars/config_&lt;CAR&gt;.m<br>every property of one car"]
         RUL["util/fsae_rules.m<br>competition constants"]
     end
@@ -32,6 +32,7 @@ flowchart TD
         GG["gg_envelope.m (point mass, T0)"]
         BIC["bicycle_model.m / understeer_at.m"]
         ME[motor_eff.m]
+        SD["slip_drag.m (tire slip drag in corners)"]
     end
 
     subgraph lapsim["lapsim/ - over a lap"]
@@ -40,10 +41,12 @@ flowchart TD
         LS[lap_sim.m]
         AT[accel_time.m]
         DC[lap_duty_cycle.m]
+        FE["fsae_events.m<br>simulates the dynamic events"]
     end
 
     TGT["targets/run_*.m<br>results + Assumes line"]
-    PTS[util/fsae_points.m]
+    FF[util/fsae_field.m]
+    PTS["util/fsae_points.m<br>rulebook scoring"]
     PL[plots/*.png]
 
     ST{{"tests/vd_selftest.m<br>staleness + formula recompute"}}
@@ -56,8 +59,9 @@ flowchart TD
     PNG --> DIG --> CSV --> LT
 
     VP --> TIRE & RL & BIC & ME
-    TIRE --> AG & AXL & BIC
-    RL --> AG & AXL & GG & DC
+    TIRE --> AG & AXL & BIC & SD
+    SD --> AXL & DC
+    RL --> AG & AXL & GG & DC & SD
     AG --> CS --> LS
     AXL --> LS & AT
     GG --> AXL
@@ -65,7 +69,9 @@ flowchart TD
     LT --> LS
 
     LS & AT & AG & AXL & GG & BIC --> TGT
-    BM --> PTS --> TGT
+    LS & AT & CS --> FE --> PTS
+    BM --> FF --> PTS --> TGT
+    RUL --> PTS
     TGT --> PL
 
     ST -. checks .-> ART

@@ -20,7 +20,7 @@ k    = vd_const();
 [t_acc, v_end] = accel_time(p, R.accel_m);
 
 % Skidpad: steady state, axle model
-vsk = corner_speed(p, 1/R.skidpad_R_m);
+vsk = corner_speed(p, 1/R.skidpad_R_m, [], 'hold');   % speed it can hold on the circle
 
 % Lap time and mass sensitivity per track
 out.laps = struct();
@@ -83,7 +83,8 @@ if isfield(out, 'E_lap')
            sprintf('%.1f kWh', out.E_endurance_kWh), sprintf('%.1f laps, no regen', laps));
 end
 fprintf(['Assumes: point mass on the track centreline (no yaw dynamics, no racing line)\n' ...
-         '         with limits from the axle models; starts from rest at the line.\n' ...
+         '         with limits from the axle models and tire slip drag in corners;\n' ...
+         '         starts from rest at the line.\n' ...
          '         Provisional: tire grip scale %.2f, launch traction and efficiencies.\n' ...
          '         Calibrate against skidpad and acceleration data.\n'], p.mu_derate);
 for i = 1:numel(saved)

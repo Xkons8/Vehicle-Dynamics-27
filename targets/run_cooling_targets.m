@@ -73,7 +73,7 @@ for k = 1:numel(cases)
         pc.P_max = min(p.P_max, P_cap_kW*1e3);
     end
     [v, t_lap, E] = lap_sim(pc, s, kappa, [], true);
-    D = lap_duty_cycle(pc, v, s);
+    D = lap_duty_cycle(pc, v, s, kappa);
     S.(cases{k}) = summarise(D, E, t_lap, WINDOWS_S);
     S.(cases{k}).v = v;  S.(cases{k}).D = D;
 end

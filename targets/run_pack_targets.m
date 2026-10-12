@@ -12,8 +12,9 @@ function out = run_pack_targets(p)
 % small mass effect; everything between them is interpolated.
 %
 % Endurance is the binding event. Two lap counts are deliberately different:
-%   feasibility  rules distance / lap length (the physical requirement)
-%   scoring      p.scenario.benchmark_laps (the basis of the 2026 results)
+%   feasibility  p.scenario.endurance_m / lap length (the energy requirement)
+%   scoring      the lap count of the competition scored against (p.competition)
+% Points come from fsae_points, the same scorer every study uses.
 %
 % Writes plots/pack_targets.png.
 %
@@ -27,7 +28,7 @@ here = vd_root();
 
 S_ANCHOR = [83 87 91];                      % series counts actually simulated
 S_GRID   = 83:0.25:91;                      % series counts solved for
-CAPS_KW  = [45 40 35 30 28 25 22 20 18 16 14];   % endurance power caps to test
+CAPS_KW  = [45 40 35 30 28 25 22 20 18 16 14 12];   % endurance power caps to test
                    % (low enough that the smallest pack is solved, not extrapolated)
 CELL     = p.cell; % per-cell values from the car config
 INTERCON = 1.15;   % busbar/holder/segment mass overhead on cell mass [-] PROVISIONAL
@@ -36,11 +37,10 @@ R        = fsae_rules();
 
 REGEN = p0.scenario.regen_capture * p0.scenario.regen_rt;   % 0 = friction braking only
 
-[se, ke]             = load_track(fullfile(here, 'tracks', 'track_endurance.csv'));
-[sx, kx]             = load_track(fullfile(here, 'tracks', 'track_autocross.csv'));
-laps_feas  = p0.scenario.endurance_m / se(end);      % laps to cover the rules distance
-laps_score = p0.scenario.benchmark_laps;             % laps the 2026 Tmins are quoted on
-bm = read_benchmarks(fullfile(here, 'organization', 'comp_benchmarks_2026.csv'));
+[se, ke]   = load_track(fullfile(here, 'tracks', 'track_endurance.csv'));
+F          = fsae_field(p0.competition);           % the real results scored against
+laps_feas  = p0.scenario.endurance_m / se(end);    % laps the energy must cover
+laps_score = F.laps;                               % laps in the scored event
 
 % ---------------------- simulate at the anchors -------------------------
 nA = numel(S_ANCHOR);  nC = numel(CAPS_KW);
@@ -58,9 +58,8 @@ for i = 1:nA
     dmass(i)  = pa.m - p0.m;
 
     % Sprint events run at full power; the endurance cap does not apply.
-    t_acc(i)  = accel_time(pa);
-    t_skid(i) = 2*pi*R.skidpad_R_m / corner_speed(pa, 1/R.skidpad_R_m);
-    [~, t_ax(i)] = lap_sim(pa, sx, kx, 0, false);
+    evs = fsae_events(pa, {'accel', 'skidpad', 'autocross'});
+    t_acc(i) = evs.accel;  t_skid(i) = evs.skidpad;  t_ax(i) = evs.autocross;
 
     for j = 1:nC
         pc = pa;  pc.P_max = min(pa.P_max, CAPS_KW(j)*1e3);
@@ -95,12 +94,14 @@ for g = 1:nG
     end
     Ecap(g) = bud;
 
+    % The cap uses the whole budget over laps_feas laps, so energy per lap is
+    % budget / laps_feas.
     ev = struct('accel',    interp1(S_ANCHOR, t_acc,  S, 'linear', 'extrap'), ...
                 'skidpad',  interp1(S_ANCHOR, t_skid, S, 'linear', 'extrap'), ...
                 'autocross',interp1(S_ANCHOR, t_ax,   S, 'linear', 'extrap'), ...
-                'endurance_lap', lap_s(g), 'laps', laps_score, ...
-                'energy_kWh', bud/laps_feas*laps_score/1000, 'lap_km', se(end)/1000);
-    [pts(g), brk] = fsae_points(ev, bm);
+                'endurance_lap', lap_s(g), 'energy_lap_kWh', bud/laps_feas/1000, ...
+                'time_factor', evs.time_factor);
+    [pts(g), brk] = fsae_points(ev, F);
     pts_end(g) = brk.endurance;  pts_eff(g) = brk.efficiency;  pts_acc(g) = brk.accel;
 end
 
@@ -108,10 +109,10 @@ end
 fprintf('\nAccumulator series count - %s  (%dP, %s; pack current %.0f A; %s)\n', ...
         p0.car, p0.pack_P, p0.cell_id, p0.pack_P*CELL.I_max, ...
         tern(REGEN > 0, sprintf('regen %.0f %% of braking energy', 100*REGEN), 'no regen'));
-fprintf(['  Endurance needs %.1f laps (%.0f km) of %.0f m; points are scored on %d laps,\n' ...
-         '  the basis of the 2026 results. Packs of %s cells in series are\n' ...
-         '  simulated; counts in between are interpolated.\n\n'], ...
-        laps_feas, p0.scenario.endurance_m/1000, se(end), laps_score, ...
+fprintf(['  The energy must cover %.1f laps (%.0f km) of %.0f m; points are scored on\n' ...
+         '  %d laps, as in the %s results. Packs of %s cells in series\n' ...
+         '  are simulated; counts in between are interpolated.\n\n'], ...
+        laps_feas, p0.scenario.endurance_m/1000, se(end), laps_score, p0.competition, ...
         strjoin(arrayfun(@num2str, S_ANCHOR, 'UniformOutput', false), ', '));
 
 SHOW = [83 84 86 87 88 89 90 91];
@@ -150,7 +151,9 @@ fprintf(['  A bigger pack runs a higher endurance power cap, which uses more ene
 fprintf(['Assumes: the BMS usable window and energy margin are choices; interconnect mass\n' ...
          '         is a guess (%.2f x cell mass); the tire fit is not rebuilt for the small\n' ...
          '         mass change; the rev limit scales with pack voltage from the configured\n' ...
-         '         value (provisional).\n'], INTERCON);
+         '         value (provisional); simulated times x%.2f / x%.2f (sprint / endurance)\n' ...
+         '         for the driver, not calibrated.\n'], INTERCON, ...
+        p0.scenario.time_factor_sprint, p0.scenario.time_factor_endurance);
 
 out = struct('S_anchor', S_ANCHOR, 'S', S_GRID, 'caps_kW', CAPS_KW, ...
              'E_lap_Wh', E_lap, 't_lap', t_lap, 't_acc', t_acc, 't_skid', t_skid, ...

@@ -15,7 +15,10 @@ function [v, t, E] = lap_sim(p, s, kappa, v0, closed)
 %     per-axle load transfer with the load-sensitive tire);
 %   - longitudinal limit from ax_combined per axle with the measured friction
 %     ellipse (p.long_model = 'combined', default), or from ax_limit's
-%     straight-line edges scaled by a car-level ellipse ('axle'/'pointmass').
+%     straight-line edges scaled by a car-level ellipse ('axle'/'pointmass');
+%   - with p.slip_drag 'on', the tire slip drag of cornering (slip_drag) is a
+%     resistance like aero drag: it costs acceleration, helps braking, and can
+%     slow the car mid-corner when the rear tires have no grip left to push.
 % Method: a speed ceiling from the corner limit at every node, a forward pass
 % (accelerate), a backward pass (brake), each node taking the lower speed.
 % A closed lap repeats the passes with the end speed fed back to the start.
@@ -45,6 +48,19 @@ if comb
 else
     axaf = vlut(p, @(vv) ax_limit(p, vv, 'accel'));
     axbf = vlut(p, @(vv) ax_limit(p, vv, 'brake'));
+    % ax_limit has no lateral load, so the slip drag is applied here as an
+    % extra deceleration [m/s^2] (ax_combined includes it itself).
+    [~, sdi] = slip_drag(p, 0, 0);
+    if sdi.on
+        vg = linspace(0, p.v_max, 24);
+        rg = linspace(0, 1, 13);
+        [VV, RR] = ndgrid(vg, rg);
+        Asd = slip_drag(p, VV, RR .* reshape(ayf(VV(:)), size(VV))) / (p.k_rot*p.m);
+        Fsd = griddedInterpolant({vg, rg}, Asd, 'linear');
+        a_sd = @(vv, uu) Fsd(min(max(vv,0),p.v_max), uu);
+    else
+        a_sd = @(vv, uu) 0;
+    end
 end
 vlim = arrayfun(@(k) corner_speed(p, k, ayf), kappa);   % speed ceiling per node
 v = vlim;
@@ -60,7 +76,7 @@ for it = 1:niter
         if comb
             ax = Fa(min(max(v(i),0),p.v_max), used) * p.g;
         else
-            ax = axaf(v(i)) * p.g * (max(0, 1 - used^n_d))^(1/n_d);
+            ax = axaf(v(i)) * p.g * (max(0, 1 - used^n_d))^(1/n_d) - a_sd(v(i), used);
         end
         v(i+1) = min(vlim(i+1), sqrt(max(v(i)^2 + 2*ax*ds(i), 0)));
     end
@@ -69,7 +85,7 @@ for it = 1:niter
         if comb
             ax = Fb(min(max(v(i),0),p.v_max), used) * p.g;
         else
-            ax = axbf(v(i)) * p.g * (max(0, 1 - used^n_b))^(1/n_b);
+            ax = axbf(v(i)) * p.g * (max(0, 1 - used^n_b))^(1/n_b) + a_sd(v(i), used);
         end
         v(i-1) = min(v(i-1), sqrt(v(i)^2 + 2*ax*ds(i-1)));
     end
@@ -80,7 +96,7 @@ vm = 0.5*(v(1:end-1) + v(2:end));
 t  = sum(ds ./ max(vm, 0.1));    % 0.1 m/s floor: a standing start has v = 0
 
 if nargout > 2
-    E = lap_energy(p, v, s);
+    E = lap_energy(p, v, s, kappa);
 end
 end
 
@@ -108,13 +124,13 @@ F = griddedInterpolant(vg, vals, 'pchip');
 h = @(v) F(min(max(v, 0), vmax));
 end
 
-function E = lap_energy(p, v, s)
+function E = lap_energy(p, v, s, kappa)
 % Energy over the speed trace, summed from lap_duty_cycle.
 %   drive_wheel_Wh   positive tractive work at the wheels
 %   drive_acc_Wh     energy drawn from the accumulator (through chain,
 %                    inverter and the motor map)
 %   brake_wheel_Wh   braking work at the wheels: the upper bound on regen
-D = lap_duty_cycle(p, v, s);
+D = lap_duty_cycle(p, v, s, kappa);
 
 J_PER_WH = 3600;
 E.drive_wheel_Wh = sum(max(D.F_thrust, 0) .* D.ds) / J_PER_WH;

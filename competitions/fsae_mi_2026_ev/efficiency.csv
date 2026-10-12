@@ -1,0 +1,33 @@
+# Formula SAE Electric 2026 (Michigan) official results, printed 6/28/2026 (SAE International).
+# Adjusted average lap, laps, energy, CO2 (0.65 kg/kWh) and efficiency factor/score as published. Blank = not scored.
+car,team,avg_lap_s,laps,energy_kWh,co2_kg,co2_kg_per_lap,ef,score
+6,Univ of Pittsburgh - Pittsburgh,65.192,22,3.263,2.120,0.0964,0.797,100
+86,Rensselaer Polytechnic Inst,80.356,22,2.843,1.847,0.0840,0.742,89.2
+26,Western Washington Univ,72.827,22,3.563,2.315,0.1052,0.653,71.7
+103,Univ of Connecticut,65.576,22,4.138,2.689,0.1222,0.625,66.1
+38,Univ of Wisconsin - Madison,69.778,22,4.148,2.696,0.1225,0.586,58.4
+99,Ecole de Technologie Superieure,64.439,12,2.477,1.610,0.1342,0.579,57.1
+62,California Polytechnic State Univ-SLO,63.406,22,4.669,3.034,0.1379,0.573,55.8
+8,Rochester Institute of Technology,64.324,22,4.749,3.086,0.1403,0.555,52.3
+21,Univ of Kansas - Lawrence,78.505,22,4.001,2.600,0.1182,0.540,49.3
+1,Oregon State Univ,59.649,22,5.302,3.446,0.1566,0.536,48.6
+30,Kookmin Univ,64.183,22,5.203,3.381,0.1537,0.508,43.0
+19,Cornell Univ,66.979,22,5.029,3.268,0.1485,0.503,42.2
+46,Carnegie Mellon Univ,67.042,22,5.291,3.439,0.1495,0.500,41.4
+65,Univ of Michigan - Ann Arbor,70.466,22,4.882,3.173,0.1442,0.493,40.1
+43,Concordia University,70.652,21,4.751,3.088,0.1470,0.482,38.0
+70,Univ of Pennsylvania,75.708,22,4.660,3.029,0.1377,0.480,37.6
+24,California State Poly Univ - Pomona,75.989,11,2.337,1.519,0.1381,0.477,37.0
+112,Northwestern Univ,74.880,22,4.881,3.172,0.1442,0.464,34.4
+111,Auburn Univ,74.773,22,5.212,3.387,0.1540,0.435,28.7
+98,Texas A&M Univ,70.105,22,5.843,3.797,0.1651,0.433,28.2
+29,Columbia Univ,96.366,13,1.522,0.989,0.0761,,
+73,Missouri University of Science and Tech,102.899,11,1.298,0.843,0.0766,,
+66,Univ of Calif - Los Angeles,95.812,22,3.052,1.983,0.0901,,
+56,Louisiana State Univ,88.041,14,2.018,1.311,0.0936,,
+109,Univ of Nevada - Reno,86.647,22,3.313,2.153,0.0979,,
+104,Univ of Calif - Santa Barbara,88.066,22,3.643,2.367,0.1076,,
+108,Univ of New Mexico,89.787,22,3.704,2.407,0.1094,,
+93,Univ of Calgary,89.695,22,3.845,2.499,0.1136,,
+14,Univ of Akron,65.563,22,,,,,
+35,Univ of North Carolina - Charlotte,86.457,21,,,,,

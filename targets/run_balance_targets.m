@@ -17,8 +17,8 @@ V_HIGH     = 0.95 * p.v_max; % fast-corner speed [m/s]
 CLA_TARGET = p.scenario.ClA_target;
 CDA_TARGET = p.scenario.CdA_target;
 GRIP_COST_MAX = 0.02;        % max ay sacrifice for a stable band [-]
-bm = read_benchmarks(fullfile(vd_root(), 'organization', 'comp_benchmarks_2026.csv'));
-SKID_REAL_BEST = bm.skidpad_tmin_s;   % best real 2026 skidpad time [s]
+F = fsae_field(p.competition);
+SKID_REAL_BEST = min(F.skidpad.t);    % best real skidpad time at that competition [s]
 
 % Skidpad with load sensitivity. Speed sets downforce and downforce sets the
 % limit, so iterate v and ay to a fixed point.
@@ -70,7 +70,7 @@ fprintf('\nBalance - %s  (axle model; LLTD %.2f, front downforce %.0f %%)\n', ..
 vd_row('Skidpad lap time, load-sensitive tire', sprintf('%.3f s', t_skid_mid), ...
        sprintf('%.3f g, %s axle saturates first', G.ay_lim_g, G.limiting));
 vd_row('Skidpad lap time, constant-grip point mass', sprintf('%.3f s', t_skid_pm), ...
-       sprintf('best real 2026: %.3f s', SKID_REAL_BEST));
+       sprintf('best real: %.3f s', SKID_REAL_BEST));
 vd_row(sprintf('LLTD for maximum lateral grip (%.0f m/s)', V_LOW), sprintf('%.2f', LLTD_neutral), ...
        sprintf('%.3f g', ay_peak));
 vd_row('Recommended LLTD', sprintf('%.2f-%.2f', LLTD_rec, LLTD_hi), ...
@@ -122,7 +122,7 @@ title(sprintf('Lateral limit vs LLTD at %.0f m/s', v_low)); legend('Location', '
 subplot(1,3,2); hold on;
 vals = [o.t_skid_pm, o.t_skid_mid, t_real];
 bar(1:3, vals, 0.5);
-set(gca, 'XTick', 1:3, 'XTickLabel', {'point mass', 'axle model', 'best real 2026'});
+set(gca, 'XTick', 1:3, 'XTickLabel', {'point mass', 'axle model', 'best real'});
 for i = 1:3, text(i, vals(i)+0.05, sprintf('%.2f s', vals(i)), 'HorizontalAlignment', 'center'); end
 ylabel('skidpad time [s]'); ylim([0.9*min(vals) 1.1*max(vals)]);
 title('Skidpad time by model'); grid on;

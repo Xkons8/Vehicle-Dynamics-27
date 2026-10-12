@@ -9,10 +9,17 @@ function ax_g = ax_combined(p, v, ay_g, mode)
 %   - axle loads include lateral (LLTD) and longitudinal (h/L) transfer, and
 %     each tire's grip comes from mu_of_load;
 %   - the force left for the longitudinal direction is
-%     Fx = mu_x/mu_y * cap * (1 - (Fy/cap)^n)^(1/n), n = measured exponent.
+%     Fx = mu_x/mu_y * cap * (1 - (Fy/cap)^n)^(1/n), n = measured exponent;
+%   - the resistances it must overcome are aero drag, rolling resistance,
+%     driveline drag and, with p.slip_drag 'on', the tire slip drag of the
+%     cornering itself (slip_drag).
 % If an axle cannot hold its lateral share, the car is at its balance limit
 % (front under power = push; rear under braking = trail-brake oversteer) and
 % the available longitudinal acceleration is zero.
+% With p.slip_drag 'on', 'accel' can return a NEGATIVE value: in a hard corner
+% the rear tires may not have enough grip left to overcome the resistances,
+% and the car then slows down even at full throttle. With 'off' the result is
+% floored at zero, as in the earlier model.
 %
 % At ay_g = 0 this reduces to ax_limit's 'axle' edges (checked in vd_selftest).
 
@@ -29,7 +36,8 @@ restore2 = onCleanup(@() warning(w2.state, w2.identifier)); %#ok<NASGU>
 N_PER_LBF = p.N_PER_LBF;
 ay     = max(ay_g, 0) * p.g;                    % [m/s^2]
 R      = road_loads(p, v);
-F_loss = R.F_loss;
+[F_slip, sd] = slip_drag(p, v, max(ay_g, 0));  % 0 on a straight or when 'off'
+F_loss = R.F_loss + F_slip;                     % everything the tires push against [N]
 m_eff  = R.m_eff;
 dW_per_a = p.m * p.h_cg / p.L;
 
@@ -44,12 +52,20 @@ switch mode
 case 'accel'
     n_e = expo(p, 'n_env_drive');
     G   = gg_envelope(p, v);
-    F_motor = G.ax_motor * p.g * m_eff + F_loss;    % motor thrust at the wheel [N]
+    F_motor = G.ax_motor * p.g * m_eff + R.F_loss;  % motor thrust at the wheel [N]
     ok_at = @(ax) accel_ok(p, R, ax, dW_per_a, dFf, dFr, Fy_f, Fy_r, n_e, ...
                            m_eff, F_loss, F_motor, N_PER_LBF);
-    lo = 0;  hi = 15;
-    while ok_at(hi) && hi < 200
-        lo = hi;  hi = 2*hi;
+    if ok_at(0) || ~sd.on
+        lo = 0;  hi = 15;
+        while ok_at(hi) && hi < 200
+            lo = hi;  hi = 2*hi;
+        end
+    else
+        % Full throttle cannot hold speed. The slowest the car can go is
+        % coasting (no drive force); find the best it can do between that
+        % and zero.
+        lo = -F_loss / m_eff;  hi = 0;
+        if ~ok_at(lo), hi = lo; end             % not even coasting holds: return it
     end
     for it = 1:30
         ax = (lo + hi)/2;

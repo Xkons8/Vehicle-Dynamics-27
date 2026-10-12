@@ -24,10 +24,9 @@ desktop.ini
 # Generated figures (reproduced by the run_* scripts)
 plots/
 
-# Trackers, releases and reports live on the team drive. The benchmarks CSV
-# is tracked because the points model reads it.
+# Trackers, releases and reports live on the team drive. (Competition
+# results the points model reads are in competitions/, which is tracked.)
 organization/*
-!organization/comp_benchmarks_2026.csv
 /*.xlsx
 
 # Markdown notes are local only; the top-level README is the one published doc.

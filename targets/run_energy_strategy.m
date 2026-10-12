@@ -41,7 +41,7 @@ if ~isempty(cap_q)
     % Pack current over one lap at that cap, from the duty cycle.
     p2 = p;  p2.P_max = min(p.P_max, cap_q*1e3);
     v_q = lap_sim(p2, s, kappa, [], true);
-    D = lap_duty_cycle(p2, v_q, s);
+    D = lap_duty_cycle(p2, v_q, s, kappa);
     w = D.dt / D.t_lap;
     I_mean = sum(D.I_pack_A .* w);
     I_rms  = sqrt(sum(D.I_pack_A.^2 .* w));

@@ -4,7 +4,8 @@ function pass = vd_selftest()
 %
 % Layer 0  the tire artifact matches its inputs (hash, tire identity, mass)
 % Layer 1  formulas recomputed independently match what the code returns
-% Layer 2  physical invariants and data anchors, with tolerances
+% Layer 2  physical invariants, data anchors and published competition scores,
+%          with tolerances
 % Errors on any failure. Draws no figures.
 
 fprintf('\n================= VD SELF-TEST =================\n');
@@ -172,6 +173,26 @@ s75 = (0:0.1:fsae_rules().accel_m)';
 [~, t75_lap] = lap_sim(p, s75, zeros(size(s75)), 0, false);
 t75_acc = accel_time(p);
 
+% --- tire slip drag: zero on a straight; Fy^2/C_alpha in the linear range ---
+% Hand calculation at 0.1 g, 15 m/s: each axle's slip angle is its yaw-balance
+% share divided by the axle cornering stiffness (both tires at one slip angle).
+RL15  = road_loads(p, 15);   A01 = 0.1*p.g;
+dFf01 = p.LLTD*p.m*A01*p.h_cg/p.t_f;   dFr01 = (1-p.LLTD)*p.m*A01*p.h_cg/p.t_r;
+Fz01  = [RL15.Nf/2+dFf01; RL15.Nf/2-dFf01; RL15.Nr/2+dFr01; RL15.Nr/2-dFr01] / p.N_PER_LBF;
+Ca01  = tire_forces(p, Fz01, [], [0;0;0;0]).Ca_lbf_deg * p.N_PER_LBF;   % [N/deg]
+Fyf01 = p.m*A01*p.b/p.L;   Fyr01 = p.m*A01*p.a/p.L;
+sd_hand = Fyf01*sind(Fyf01/(Ca01(1)+Ca01(2))) + Fyr01*sind(Fyr01/(Ca01(3)+Ca01(4)));
+p_sd0 = vd_set(p, 'slip_drag', 'on', 'camber_deg', cam0);
+% Skidpad speed the car can HOLD: with slip drag off, nothing extra to push
+% against, so it equals the grip limit; with it on, it must be lower.
+k_sk   = 1/fsae_rules().skidpad_R_m;
+p_sdx  = vd_set(p, 'slip_drag', 'off');
+v_sk   = corner_speed(p, k_sk);
+v_hold = corner_speed(p, k_sk, [], 'hold');
+
+% --- scoring: a car faster than the whole field must take the maximum ------
+Fc = fsae_field(p.competition);
+
 C = {
   'mu_y = raw * derate',       p.mu_y,            p.mu_y_raw * p.mu_derate
   'mu_x = raw * derate',       p.mu_x,            p.mu_x_raw * p.mu_derate
@@ -209,6 +230,12 @@ C = {
   'axle loads sum to N',       RL20.Nf + RL20.Nr,            RL20.N
   'rear load: weight + CoP',   RL20.Nr,                      (1-p.mass_dist_f)*p.m*p.g + (1-p.aero_df_front)*RL20.DF
   'lap_sim: left == right',    t_left,                       t_right
+  'beat the field: accel = 100', fsae_points(struct('accel', 0.9*min(Fc.accel.t)), Fc), 100
+  'slip drag = 0 on a straight', slip_drag(p, 15, 0),          0
+  'slip drag off -> 0',        slip_drag(vd_set(p, 'slip_drag', 'off'), 15, 1.0), 0
+  'slip drag array == points', max(abs(slip_drag(p, [10 15 20], [0.5 1.0 1.4]) - ...
+                               [slip_drag(p, 10, 0.5) slip_drag(p, 15, 1.0) slip_drag(p, 20, 1.4)])), 0
+  'skidpad hold = limit, drag off', corner_speed(p_sdx, k_sk, [], 'hold'), corner_speed(p_sdx, k_sk)
 };
 
 fprintf('\n-- formula wiring --\n');
@@ -224,6 +251,9 @@ end
 fprintf('\n-- data anchors --\n');
 % (1) raw-data anchors (need TTC data), (2) physical invariants with tolerances.
 inr = @(x,lo,hi) double(x >= lo & x <= hi);
+% fsae_points against every published score of the competition in p. The
+% published scores are rounded and come from unrounded times, so allow 0.1.
+res = score_residuals(Fc);
 A = {};
 if has_ttc
     % (1) raw-data anchor - fit-method-independent. Needs the licensed data.
@@ -261,6 +291,17 @@ A = [A; {
   'camber clamped past box',   tire_camber(p, Fz_t, 3*p.camber_gamma_max_deg), tire_camber(p, Fz_t, p.camber_gamma_max_deg), 1e-12
   'axle_grip RESPONDS to camber', double(abs(G12c2.ay_lim_g - G12.ay_lim_g) > 1e-4), 1, 0.5
   'camber fit RMS < 8%',       double(max(T.camber_rms(1:2)) < 0.08), 1, 0.5
+  % --- tire slip drag (linear range: hand calc to 1 %, scales as ay^2) ---
+  'slip drag = Fy^2/Ca @0.1 g',slip_drag(p_sd0, 15, 0.1) / sd_hand, 1, 0.01
+  'slip drag ~ ay^2 (lin.)',   slip_drag(p_sd0, 15, 0.2) / slip_drag(p_sd0, 15, 0.1), 4, 0.1
+  'skidpad hold below limit',  double(v_hold < v_sk), 1, 0.5
+  % --- scoring reproduces the published results (largest error, points) --
+  'accel pts = published',     res.accel,          0, 0.10
+  'skidpad pts = published',   res.skidpad,        0, 0.10
+  'autocross pts = published', res.autocross,      0, 0.10
+  'endurance time = published',res.endurance_time, 0, 0.10
+  'endurance laps = published',res.endurance_laps, 0, 1e-9
+  'efficiency pts = published',res.efficiency,     0, 0.10
 }];
 for i = 1:size(A,1)
     got = A{i,2}; wantv = A{i,3}; tol = A{i,4};
@@ -281,6 +322,38 @@ fprintf('%s   (%d checks, %d failed) in %.1f s%s\n', ...
 if ~pass
     error('vd_selftest:failed','%d self-test check(s) failed - see table above.', nfail);
 end
+end
+
+function r = score_residuals(F)
+% Largest |fsae_points - published score| over every team, per event.
+R = fsae_rules();
+for e = {'accel', 'skidpad', 'autocross'}
+    k = e{1};  X = F.(k);  d = zeros(numel(X.t), 1);
+    for i = 1:numel(X.t)
+        [~, b] = fsae_points(struct(k, X.t(i)), F);
+        d(i) = b.(k) - X.score(i);
+    end
+    r.(k) = max(abs(d));
+end
+X = F.endurance;
+r.endurance_laps = max(abs(reshape(R.endurance_lap_points(X.laps + 1), [], 1) - X.laps_score(:)));
+d = [];
+for i = find(~isnan(X.t))'
+    [~, b] = fsae_points(struct('endurance_lap', X.t(i)/X.laps(i), 'laps', X.laps(i)), F);
+    pub = X.time_score(i);  if isnan(pub), pub = 0; end    % blank: no time points
+    d(end+1) = b.endurance_time - pub; %#ok<AGROW>
+end
+r.endurance_time = max(abs(d));
+X = F.efficiency;
+d = [];
+for i = find(~isnan(X.co2_lap))'
+    ev = struct('endurance_lap', X.lap_s(i), 'laps', X.laps(i), ...
+                'energy_lap_kWh', X.co2_lap(i) / R.co2_kg_per_kWh);
+    [~, b] = fsae_points(ev, F);
+    pub = X.score(i);  if isnan(pub), pub = 0; end         % blank: not eligible
+    d(end+1) = b.efficiency - pub; %#ok<AGROW>
+end
+r.efficiency = max(abs(d));
 end
 
 function v = second_out(f)

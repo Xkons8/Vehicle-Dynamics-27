@@ -238,8 +238,9 @@ def check_readme_points_at_cars():
 
 
 def check_no_bare_rule_constants():
-    """Competition constants live only in util/fsae_rules.m."""
-    pats = [r"(?<![\d.])9\.125(?![\d])", r"(?<![\w.])80e3(?![\w])"]
+    """Competition constants (geometry, power, scoring) live only in util/fsae_rules.m."""
+    pats = [r"(?<![\d.])9\.125(?![\d])", r"(?<![\w.])80e3(?![\w])",
+            r"(?<![\d.])(95\.5|71\.5|118\.5|0\.2002)(?![\d])"]
     for rel in all_m_files():
         if rel.endswith("fsae_rules.m"):
             continue
@@ -266,6 +267,24 @@ def check_staleness_list_readable():
              "Keep the fullfile(root, 'tire', 'name.m') form or update both files.")
 
 
+COMPETITION_FILES = ["accel.csv", "skidpad.csv", "autocross.csv",
+                     "endurance.csv", "efficiency.csv"]
+
+
+def check_competition_data():
+    """The competition named in vehicle_params.m has its five result files."""
+    m = re.search(r"p\.competition\s*=\s*'([^']+)'", read("vehicle_params.m"))
+    if not m:
+        fail("competition-data", "vehicle_params.m does not set p.competition = '<name>'.")
+        return
+    name = m.group(1)
+    for n in COMPETITION_FILES:
+        if not exists(f"competitions/{name}/{n}"):
+            fail("competition-data",
+                 f"p.competition is '{name}' but competitions/{name}/{n} is missing. "
+                 f"fsae_points cannot score without it.")
+
+
 # --------------------------------------------------------------------------
 CHECKS = [
     ("targets listed in README", check_targets_in_readme),
@@ -277,6 +296,7 @@ CHECKS = [
     ("lbf conversion has one home", check_no_bare_lbf_constant),
     ("one 75 m accel integrator", check_one_accel_integrator),
     ("rule constants have one home", check_no_bare_rule_constants),
+    ("competition results present", check_competition_data),
     ("staleness list is readable", check_staleness_list_readable),
     ("artifact schema versions agree", check_schema_version_agrees),
     ("function name == filename", check_function_names),

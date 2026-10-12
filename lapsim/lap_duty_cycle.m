@@ -1,6 +1,6 @@
-function D = lap_duty_cycle(p, v, s)
+function D = lap_duty_cycle(p, v, s, kappa)
 % LAP_DUTY_CYCLE  What the powertrain does over one lap, segment by segment.
-%   D = lap_duty_cycle(p, v, s)      v, s as returned by lap_sim (node values)
+%   D = lap_duty_cycle(p, v, s, kappa)   v from lap_sim; s, kappa the track nodes
 %
 % The single home for thrust, motor state and loss accounting along a lap:
 % lap_sim's energy totals sum these fields and run_cooling_targets
@@ -9,8 +9,10 @@ function D = lap_duty_cycle(p, v, s)
 %
 %   ds, vm, a, dt, t   segment length [m], mean speed [m/s], accel [m/s^2],
 %                      duration [s], time at segment midpoint [s]
-%   F_thrust           wheel force [N] = k_rot*m*a + drag + rolling + driveline;
-%                      > 0 the motor drives, < 0 the brakes hold back
+%   F_thrust           wheel force [N] = k_rot*m*a + drag + rolling + driveline
+%                      + slip drag; > 0 the motor drives, < 0 the brakes hold back
+%   F_slip             tire slip drag of cornering [N] (slip_drag; 0 when
+%                      p.slip_drag is 'off')
 %   P_wheel_W          wheel drive power (thrust > 0 only)
 %   P_brake_W          power into the friction brakes (no regen modelled)
 %   rpm, T_mot_Nm      motor speed and torque (through the chain)
@@ -40,7 +42,9 @@ function D = lap_duty_cycle(p, v, s)
 % read slightly above P_max at full power.
 % Motor data: EMRAX 228 technical data, p.2-3.
 
-v  = v(:);  s = s(:);
+v  = v(:);  s = s(:);  kappa = abs(kappa(:));
+assert(numel(kappa) == numel(s), 'lap_duty_cycle:kappa', ...
+       'kappa must have one value per track node (got %d for %d nodes).', numel(kappa), numel(s));
 ds = diff(s);
 vm = 0.5*(v(1:end-1) + v(2:end));
 a  = (v(2:end).^2 - v(1:end-1).^2) ./ (2*ds);
@@ -50,14 +54,16 @@ t  = cumsum(dt) - 0.5*dt;
 
 % --- wheel thrust: Newton's law with rotating inertia, plus resistances ---
 RL = road_loads(p, vm);
-F_thrust = RL.m_eff .* a + RL.F_drag + RL.F_rr + RL.F_dl;   % [N]
+ay_g   = vm.^2 .* 0.5.*(kappa(1:end-1) + kappa(2:end)) / p.g;   % lateral acceleration [g]
+F_slip = slip_drag(p, vm, ay_g);                                 % 0 when 'off'
+F_thrust = RL.m_eff .* a + RL.F_drag + RL.F_rr + RL.F_dl + F_slip;   % [N]
 
 P_wheel = max(F_thrust, 0) .* vm;
 P_brake = max(-F_thrust, 0) .* vm;
 
 D = struct('ds', ds, 'vm', vm, 'a', a, 'dt', dt, 't', t, ...
-           'F_thrust', F_thrust, 'P_wheel_W', P_wheel, 'P_brake_W', P_brake, ...
-           't_lap', sum(dt));
+           'F_thrust', F_thrust, 'F_slip', F_slip, 'P_wheel_W', P_wheel, ...
+           'P_brake_W', P_brake, 't_lap', sum(dt));
 
 % --- motor, inverter, pack ------------------------------------------------
 % Every config supplies eta_chain and eta_inv; a hand-built p without them
