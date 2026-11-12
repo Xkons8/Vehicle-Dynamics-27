@@ -63,7 +63,7 @@ case 'brake'
     % Bisect on deceleration D [m/s^2]: braking capacity minus demand
     % changes sign once.
     %cap_ok = @(D) brake_capacity(p, R, dW_per_a*D, N_PER_LBF) + F_loss >= m_eff*D;
-    cap_ok = @(D) brake_ok(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF);
+    cap_ok = @(D) brake_ok_straight(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF);
     lo = 0;  hi = 30;
     while cap_ok(hi) && hi < 400                % widen if the car can beat the bracket
         lo = hi;  hi = 2*hi;
@@ -92,7 +92,7 @@ end
 % end
 % cap = cap * p.mu_anisotropy;      % lateral fit -> longitudinal
 
-function ok = brake_ok(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF) % Assuming car brakes while facing straight, no cornering
+function ok = brake_ok_straight(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF) % Assuming car brakes while facing straight, no cornering
 [capF, capR] = brake_axle_caps(p, R, dW_per_a*D, N_PER_LBF);
 ok = brake_split(p, m_eff*D - F_loss, capF, capR);
 end
@@ -104,7 +104,7 @@ if Wr <= 0
     capF = mu_of_load(p, Wf/2/N_PER_LBF)*Wf*p.mu_anisotropy;
     capR = 0;
 else
-    mu2 = mu_of_load(p, [Wf Wr]/2/N_PER_LBF)*Wf*p.mu_anisotropy;
+    mu2 = mu_of_load(p, [Wf Wr]/2/N_PER_LBF);
     capF = mu2(1)*Wf*p.mu_anisotropy;
     capR = mu2(2)*Wr*p.mu_anisotropy;
 end

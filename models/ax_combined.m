@@ -1,4 +1,4 @@
-function ax_g = ax_combined(p, v, ay_g, mode)
+function [ax_g, locks] = ax_combined(p, v, ay_g, mode)
 % AX_COMBINED  Longitudinal limit [g] at speed v while cornering at ay_g [g].
 %   ax_g = ax_combined(p, v, ay_g, 'accel' | 'brake')
 %
@@ -22,6 +22,9 @@ function ax_g = ax_combined(p, v, ay_g, mode)
 % floored at zero, as in the earlier model.
 %
 % At ay_g = 0 this reduces to ax_limit's 'axle' edges (checked in vd_selftest).
+
+
+locks = '';
 
 if ~strcmpi(p.drive, 'RWD')
     error('ax_combined:drive', ['The per-axle combined model assumes rear-wheel ' ...
@@ -74,6 +77,10 @@ case 'accel'
     ax_g = lo / p.g;
 
 case 'brake'
+    
+    
+    
+    
     n_e = expo(p, 'n_env_brake');
     ok_at = @(D) brake_ok(p, R, D, dW_per_a, dFf, dFr, Fy_f, Fy_r, n_e, ...
                           m_eff, F_loss, N_PER_LBF);
@@ -87,6 +94,10 @@ case 'brake'
     end
     ax_g = lo / p.g;
 
+    if nargout > 1 
+        [~,locks] = brake_ok(p, R, hi, dW_per_a, dFf, dFr, Fy_f, Fy_r, n_e, ...
+            m_eff, F_loss, N_PER_LBF);
+    end
 otherwise
     error('ax_combined:badMode', 'mode must be ''accel'' or ''brake''.');
 end
@@ -112,7 +123,7 @@ end
 end
 
 
-function ok = brake_ok(p, R, D, dW_per_a, dFf, dFr, Fy_f, Fy_r, n_e, m_eff, F_loss, N_PER_LBF)
+function [ok, locks] = brake_ok(p, R, D, dW_per_a, dFf, dFr, Fy_f, Fy_r, n_e, m_eff, F_loss, N_PER_LBF)
 % Can the car brake at D [m/s^2] while holding its lateral load?
 dWl = dW_per_a * D;
 Wf  = R.Nf + dWl;
@@ -123,8 +134,10 @@ ok = Fy_f <= capF && Fy_r <= capR;              % both axles hold the line
 if ok
     remF = 1 - min(Fy_f/max(capF,1e-9), 1)^n_e;
     remR = 1 - min(Fy_r/max(capR,1e-9), 1)^n_e;
-    Fx_budget = p.mu_anisotropy * (capF*max(remF,0)^(1/n_e) + capR*max(remR,0)^(1/n_e));
-    ok = m_eff*D <= Fx_budget + F_loss;         % losses help braking
+    FxF = p.mu_anisotropy*capF*max(remF,0)^(1/n_e);
+    FxR = FxF = p.mu_anisotropy*capR*max(remR,0)^(1/n_e);
+   % Fx_budget = p.mu_anisotropy * (capF*max(remF,0)^(1/n_e) + capR*max(remR,0)^(1/n_e));
+   % ok = m_eff*D <= Fx_budget + F_loss;         % losses help braking
 end
 end
 
