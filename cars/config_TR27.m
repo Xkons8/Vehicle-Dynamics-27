@@ -126,4 +126,9 @@ c.cooling.rad_core_t_m    = NaN;        % core thickness [m] MEASURE
 c.cooling.rad_UA_W_per_K  = NaN;        % radiator UA at fan flow [W/K] - from a bench test
 c.cooling.thermal_mass_J_per_K = 16000; % coolant + motor + inverter heat capacity [J/K] PROVISIONAL
                                         %   (~1.5 L water + 12 kg motor + ~6 kg inverter)
+
+
+% -----BRAKES-----
+c.brake_bias_f = 0.65; % (65/35 split) CHOICE
+
 end

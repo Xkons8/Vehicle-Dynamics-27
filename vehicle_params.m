@@ -33,7 +33,7 @@ REQUIRED = { ...
   'V_pack_nom','V_pack_max','I_pack_max','E_pack_Wh','I_fuse_main','R_pack', ...
   'motor_id','inverter_id','T_motor_max','T_motor_cont','rpm_motor_max','drive', ...
   'gear_ratio','eta_dt','eta_chain','eta_inv','Crr','k_trac', ...
-  'b_driveline','Tc_driveline','DI','I_rotor','I_wheel','scenario','cooling','cell'};
+  'b_driveline','Tc_driveline','DI','I_rotor','I_wheel','scenario','cooling','cell','brake_bias_f'};
 missing = REQUIRED(~isfield(cfg, REQUIRED));
 assert(isempty(missing), 'vehicle_params:incompleteConfig', ...
     'cars/config_%s.m is missing required field(s): %s', p.car, strjoin(missing, ', '));
@@ -55,6 +55,7 @@ p.scenario.time_factor_endurance = 1.04;   % endurance laps (power-capped pace) 
 p.grip_model = 'axle';      % lateral limit: 'axle' (load-sensitive) | 'pointmass'
 p.long_model = 'combined';  % longitudinal: 'combined' (per-axle ellipse) | 'axle' | 'pointmass'
 p.slip_drag  = 'on';        % tire slip drag in corners (slip_drag): 'on' | 'off' (no cornering loss)
+p.brake_model = 'ideal';
 
 % --- Per-corner camber (degrees, positive = the helpful lean) -------------
 % Zero by default. An input, not a suspension model: nothing computes camber
