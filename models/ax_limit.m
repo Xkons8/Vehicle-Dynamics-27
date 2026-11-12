@@ -62,7 +62,8 @@ case 'accel'
 case 'brake'
     % Bisect on deceleration D [m/s^2]: braking capacity minus demand
     % changes sign once.
-    cap_ok = @(D) brake_capacity(p, R, dW_per_a*D, N_PER_LBF) + F_loss >= m_eff*D;
+    %cap_ok = @(D) brake_capacity(p, R, dW_per_a*D, N_PER_LBF) + F_loss >= m_eff*D;
+    cap_ok = @(D) brake_ok(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF);
     lo = 0;  hi = 30;
     while cap_ok(hi) && hi < 400                % widen if the car can beat the bracket
         lo = hi;  hi = 2*hi;
@@ -78,16 +79,33 @@ otherwise
 end
 end
 
-function cap = brake_capacity(p, R, dW, N_PER_LBF)
-% Longitudinal force all four tires can make at axle loads shifted by dW.
+% function cap = brake_capacity(p, R, dW, N_PER_LBF)
+% % Longitudinal force all four tires can make at axle loads shifted by dW.
+% Wf = R.Nf + dW;
+% Wr = R.Nr - dW;
+% if Wr <= 0                                      % rear lifted: front does it all
+%     W = Wf + max(Wr, 0);
+%     cap = mu_of_load(p, W/2/N_PER_LBF) * W;
+% else
+%     mu2 = mu_of_load(p, [Wf Wr]/2/N_PER_LBF);
+%     cap = mu2(1)*Wf + mu2(2)*Wr;
+% end
+% cap = cap * p.mu_anisotropy;      % lateral fit -> longitudinal
+
+function ok = brake_ok(p, R, D, dW_per_a, m_eff, F_loss, N_PER_LBF) % Assuming car brakes while facing straight, no cornering
+[capF, capR] = brake_axle_caps(p, R, dW_per_a*D, N_PER_LBF);
+ok = brake_split(p, m_eff*D - F_loss, capF, capR);
+end
+function [capF,capR] = brake_axle_caps(p, R, dW, N_PER_LBF)
+
 Wf = R.Nf + dW;
 Wr = R.Nr - dW;
-if Wr <= 0                                      % rear lifted: front does it all
-    W = Wf + max(Wr, 0);
-    cap = mu_of_load(p, W/2/N_PER_LBF) * W;
+if Wr <= 0
+    capF = mu_of_load(p, Wf/2/N_PER_LBF)*Wf*p.mu_anisotropy;
+    capR = 0;
 else
-    mu2 = mu_of_load(p, [Wf Wr]/2/N_PER_LBF);
-    cap = mu2(1)*Wf + mu2(2)*Wr;
+    mu2 = mu_of_load(p, [Wf Wr]/2/N_PER_LBF)*Wf*p.mu_anisotropy;
+    capF = mu2(1)*Wf*p.mu_anisotropy;
+    capR = mu2(2)*Wr*p.mu_anisotropy;
 end
-cap = cap * p.mu_anisotropy;                    % lateral fit -> longitudinal
 end
